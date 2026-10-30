@@ -1,6 +1,0 @@
-plugins { id 'com.android.application' }
-android {
-    namespace 'com.messenger.app'
-    compileSdk 35
-    defaultConfig { applicationId 'com.messenger.app'; minSdk 23; targetSdk 34; versionCode 3; versionName '2.0-clean' }
-}
