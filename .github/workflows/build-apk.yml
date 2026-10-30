@@ -11,6 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,8 +25,8 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install SDK packages
-        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses || true
 
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
@@ -33,7 +34,7 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build APK
-        run: gradle --no-daemon clean assembleDebug
+        run: gradle --no-daemon --stacktrace clean assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
