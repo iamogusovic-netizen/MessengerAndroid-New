@@ -1,0 +1,31 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.messenger.app'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.messenger.app'
+        minSdk 23
+        targetSdk 34
+        versionCode 5
+        versionName '2.2'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+        release {
+            minifyEnabled false
+        }
+    }
+}

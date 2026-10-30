@@ -1,0 +1,12 @@
+{$SERVER_IP} {
+    tls internal
+    encode zstd gzip
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        X-Frame-Options DENY
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        -Server
+    }
+    reverse_proxy app:3000
+}

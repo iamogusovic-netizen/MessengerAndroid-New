@@ -1,0 +1,24 @@
+{
+  "name": "messenger-desktop",
+  "version": "2.2.0",
+  "private": true,
+  "description": "Настольный мессенджер с E2EE и поиском по никнейму",
+  "main": "main.js",
+  "author": "Messenger Prototype",
+  "scripts": {
+    "start": "electron .",
+    "web": "node backend/server.js",
+    "dist": "electron-builder --win nsis"
+  },
+  "dependencies": { "express": "^4.21.2", "ws": "^8.18.0" },
+  "devDependencies": { "electron": "^35.1.5", "electron-builder": "^26.0.12" },
+  "build": {
+    "appId": "local.prototype.messenger",
+    "productName": "Мессенджер",
+    "asar": true,
+    "files": ["main.js", "backend/**/*", "frontend/**/*", "package.json", "node_modules/**/*", "!backend/data/**/*"],
+    "directories": { "output": "release" },
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true }
+  }
+}

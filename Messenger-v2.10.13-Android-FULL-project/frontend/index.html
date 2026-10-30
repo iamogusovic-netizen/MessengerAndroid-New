@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+  <meta name="theme-color" content="#111827"><title>Мессенджер</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="authScreen" class="auth-screen">
+    <section class="auth-card">
+      <div class="brand-mark">m</div><p class="eyebrow">ТВОЁ ОБЩЕНИЕ</p><h1>Мессенджер</h1><p class="muted auth-copy">ВРЕМЕННЫЙ РЕЖИМ HTTP: сообщения не зашифрованы и хранятся на сервере. Не отправляй личные данные. Для безопасного использования верни HTTPS и E2EE.</p>
+      <div class="auth-tabs"><button class="tab active" data-mode="login">Войти</button><button class="tab" data-mode="register">Создать аккаунт</button></div>
+      <form id="authForm" class="auth-form">
+        <label>Уникальный никнейм<input id="nickname" name="nickname" autocomplete="username" minlength="3" maxlength="24" placeholder="Например, MyNickname" required></label>
+        <p class="field-hint">3–24 символа: буквы, цифры, _ или -</p>
+        <label>Пароль<input id="password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" placeholder="Минимум 8 символов" required></label>
+        <p id="authError" class="error" role="alert"></p><button id="authSubmit" class="primary full" type="submit">Войти</button>
+      </form>
+      <p class="tiny muted">Пароль защищает твой ключ шифрования. Потеря пароля может означать потерю доступа к зашифрованным сообщениям.</p>
+    </section>
+  </main>
+
+  <main id="appScreen" class="app-shell hidden">
+    <aside class="sidebar">
+      <header class="side-header"><div class="brand-lockup"><div class="brand-mark small">m</div><span>мессенджер</span></div><button id="themeButton" class="icon-button" title="Сменить тему" aria-label="Сменить тему">☼</button></header>
+      <div class="profile-row"><button id="myAvatar" class="avatar my-avatar-button" type="button" title="Настроить профиль" aria-label="Настроить профиль">?</button><button id="myPublicProfileButton" class="my-public-profile-button" type="button" title="Посмотреть свой профиль" aria-label="Посмотреть свой профиль"><span class="profile-view-full">Смотреть профиль</span><span class="profile-view-compact" aria-hidden="true">◉</span></button><div class="profile-info"><strong id="myNickname" title="Нажми, чтобы посмотреть свой профиль" role="button" tabindex="0">Пользователь</strong><span class="online-label"><i></i> в сети</span></div><button id="logoutButton" class="icon-button" title="Выйти" aria-label="Выйти">↪</button></div>
+      <div class="side-section-title">ОБЩЕНИЕ</div>
+      <div id="forwardModeBanner" class="forward-mode-banner hidden"><span>Переслать сообщение · выбери чат</span><button id="cancelForwardButton" type="button" aria-label="Отменить пересылку">×</button></div><button id="groupButton" class="conversation active"><span class="conversation-icon">#</span><span class="conversation-copy"><strong>Общий чат</strong><small>Все участники</small></span></button>
+      <div class="contacts-heading"><span>ЛИЧНЫЕ СООБЩЕНИЯ</span><span id="contactsCount">0</span></div>
+      <label class="search-label"><input id="userSearch" type="search" placeholder="Поиск по никнейму…" autocomplete="off" aria-label="Поиск пользователей по никнейму"></label>
+      <div id="contactsList" class="contacts-list"><div class="empty-contacts">Здесь появятся пользователи</div></div>
+      <footer class="sidebar-footer"><span class="status-dot"></span> Временный режим: без E2EE</footer>
+    </aside>
+    <section class="chat-panel">
+      <header class="chat-header"><button id="backToChatsButton" class="icon-button back-to-chats" type="button" title="Все чаты" aria-label="Вернуться ко всем чатам">←</button><div id="chatAvatar" class="avatar chat-avatar">#</div><div class="chat-title"><h2 id="chatTitle">Общий чат</h2><p id="chatSubtitle">Общение со всеми участниками</p></div><div class="header-right"><span class="connection"><i id="connectionDot"></i><span id="connectionText">Подключение…</span></span></div></header>
+      <div id="messages" class="messages"><div class="welcome"><div class="welcome-symbol">✦</div><h3>Добро пожаловать!</h3><p>Начни разговор — напиши первое сообщение.</p></div></div>
+      <div id="typingIndicator" class="typing-indicator"></div>
+      <button id="scrollBottomButton" class="scroll-bottom-button hidden" type="button" aria-label="Перейти к последнему сообщению" title="Перейти к последнему сообщению">↓</button><form id="messageForm" class="composer"><div id="replyComposerBanner" class="reply-composer-banner hidden"></div><input id="fileInput" type="file" hidden><input id="mediaInput" type="file" accept="image/*,video/*" hidden><button id="attachButton" class="emoji-button attach-button" type="button" title="Прикрепить файл" aria-label="Прикрепить файл">📎</button><div class="emoji-picker-wrap"><button id="emojiButton" class="emoji-button" type="button" title="Выбрать эмодзи" aria-label="Выбрать эмодзи" aria-haspopup="true" aria-expanded="false">☺</button><div id="emojiPicker" class="emoji-picker hidden" role="dialog" aria-label="Выбор эмодзи"><div class="emoji-picker-title">Эмодзи</div><div class="emoji-picker-grid"><button type="button" class="emoji-option" data-emoji="❤️" aria-label="Сердце" title="Сердце">❤️</button><button type="button" class="emoji-option" data-emoji="😂" aria-label="Смеюсь" title="Смеюсь">😂</button><button type="button" class="emoji-option" data-emoji="👍" aria-label="Нравится" title="Нравится">👍</button><button type="button" class="emoji-option" data-emoji="🙂" aria-label="Улыбка" title="Улыбка">🙂</button><button type="button" class="emoji-option" data-emoji="🔥" aria-label="Огонь" title="Огонь">🔥</button><button type="button" class="emoji-option" data-emoji="👎" aria-label="Не нравится" title="Не нравится">👎</button><button type="button" class="emoji-option" data-emoji="😍" aria-label="Влюблённые глаза" title="Влюблённые глаза">😍</button><button type="button" class="emoji-option" data-emoji="😮" aria-label="Удивление" title="Удивление">😮</button><button type="button" class="emoji-option" data-emoji="😢" aria-label="Грусть" title="Грусть">😢</button><button type="button" class="emoji-option" data-emoji="🎉" aria-label="Праздник" title="Праздник">🎉</button><button type="button" class="emoji-option" data-emoji="👏" aria-label="Аплодисменты" title="Аплодисменты">👏</button><button type="button" class="emoji-option" data-emoji="🙏" aria-label="Спасибо" title="Спасибо">🙏</button><button type="button" class="emoji-option" data-emoji="🤔" aria-label="Думаю" title="Думаю">🤔</button><button type="button" class="emoji-option" data-emoji="😎" aria-label="Круто" title="Круто">😎</button><button type="button" class="emoji-option" data-emoji="💯" aria-label="Сто" title="Сто">💯</button><button type="button" class="emoji-option" data-emoji="✨" aria-label="Искры" title="Искры">✨</button><button type="button" class="emoji-option" data-emoji="🤗" aria-label="Объятия" title="Объятия">🤗</button><button type="button" class="emoji-option" data-emoji="💀" aria-label="Умер со смеху" title="Умер со смеху">💀</button></div></div></div><textarea id="messageInput" rows="1" maxlength="2000" placeholder="Написать сообщение…" aria-label="Текст сообщения"></textarea><div class="composer-hint">Enter — отправить · Shift+Enter — новая строка</div><div class="send-stack"><button id="sendButton" class="send-button" type="submit" aria-label="Отправить сообщение">➤</button></div></form>
+      <div class="footer-note">Не делись паролями и личными данными в публичном чате.</div>
+    </section>
+  </main>
+  <div id="attachmentChooser" class="attachment-chooser hidden" role="dialog" aria-modal="true" aria-label="Прикрепить вложение">
+    <button class="attachment-chooser-backdrop" type="button" data-close-attachment-chooser aria-label="Закрыть меню"></button>
+    <section class="attachment-chooser-sheet">
+      <div class="attachment-chooser-handle" aria-hidden="true"></div>
+      <div class="attachment-chooser-title">Прикрепить</div>
+      <div class="attachment-chooser-options">
+        <button id="chooseFileButton" class="attachment-choice" type="button"><span class="attachment-choice-icon file-choice-icon">↥</span><span><strong>Файл</strong><small>Документы и другие файлы</small></span></button>
+        <button id="chooseMediaButton" class="attachment-choice" type="button"><span class="attachment-choice-icon media-choice-icon">▧</span><span><strong>Фото и видео</strong><small>Выбрать из галереи телефона</small></span></button>
+      </div>
+    </section>
+  </div>
+  <div id="mobileMediaSheet" class="mobile-media-sheet hidden" role="dialog" aria-modal="true" aria-label="Фото и видео">
+    <button class="mobile-media-backdrop" type="button" data-close-media-sheet aria-label="Закрыть выбор фото"></button>
+    <section class="mobile-media-panel" id="mobileMediaPanel">
+      <div class="mobile-media-handle-area" id="mobileMediaHandleArea" role="button" tabindex="0" aria-label="Потяните вверх для полного экрана, вниз для закрытия">
+        <span class="mobile-media-handle"></span>
+      </div>
+      <header class="mobile-media-header"><div><strong>Фото и видео</strong><small>Выбери медиа с телефона</small></div><button id="mobileMediaClose" type="button" aria-label="Закрыть">×</button></header>
+      <div class="mobile-media-content">
+        <div class="mobile-media-empty-icon">▧</div>
+        <strong>Твои фото и видео</strong>
+        <p>Открой галерею устройства, чтобы выбрать фото или видео для отправки.</p>
+        <button id="openDeviceGalleryButton" type="button" class="mobile-media-open-button"><span>▣</span> Открыть галерею устройства</button>
+      </div>
+    </section>
+  </div>
+  <div id="messageEditModal" class="profile-modal hidden" role="dialog" aria-modal="true" aria-labelledby="messageEditTitle">
+    <form id="messageEditForm" class="message-dialog-card">
+      <header class="message-dialog-header"><h2 id="messageEditTitle">Изменить сообщение</h2><button id="messageEditClose" class="icon-button" type="button" aria-label="Закрыть">×</button></header>
+      <textarea id="messageEditText" maxlength="2000" rows="5" required aria-label="Текст сообщения"></textarea>
+      <p id="messageEditError" class="error" role="alert"></p>
+      <div class="message-dialog-actions"><button id="messageEditCancel" class="secondary" type="button">Отмена</button><button class="primary" type="submit">Сохранить</button></div>
+    </form>
+  </div>
+  <div id="messageDeleteModal" class="profile-modal hidden" role="dialog" aria-modal="true" aria-labelledby="messageDeleteTitle">
+    <section class="message-dialog-card">
+      <header class="message-dialog-header"><h2 id="messageDeleteTitle">Удалить сообщение?</h2><button id="messageDeleteClose" class="icon-button" type="button" aria-label="Закрыть">×</button></header>
+      <p class="muted message-delete-copy">Выбери, где удалить это сообщение.</p>
+      <div class="message-delete-options"><button id="deleteForMeButton" class="message-delete-option" type="button"><strong>Удалить только у меня</strong><small>Сообщение исчезнет только из твоей переписки</small></button><button id="deleteForEveryoneButton" class="message-delete-option danger-option" type="button"><strong>Удалить у всех</strong><small>Сообщение исчезнет у всех участников</small></button></div>
+    </section>
+  </div>
+  <div id="imageViewerModal" class="image-viewer-modal hidden" role="dialog" aria-modal="true" aria-label="Просмотр фото">
+    <button id="imageViewerClose" class="image-viewer-close" type="button" aria-label="Закрыть просмотр">×</button>
+    <figure class="image-viewer-figure"><img id="imageViewerImage" alt="Фото в полном размере"><figcaption id="imageViewerCaption"></figcaption></figure>
+  </div>
+
+  <div id="profileModal" class="profile-modal hidden" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+    <form id="profileForm" class="profile-card">
+      <header class="profile-modal-header"><div><p class="eyebrow">МОЙ АККАУНТ</p><h2 id="profileModalTitle">Настройка профиля</h2></div><button id="profileClose" class="icon-button" type="button" aria-label="Закрыть">×</button></header>
+      <label>Никнейм<input id="profileNickname" minlength="3" maxlength="24" required></label>
+      <label>Описание<textarea id="profileBio" maxlength="180" rows="3" placeholder="Немного о себе"></textarea></label>
+      <label>Аватарка<input id="profileAvatarFile" type="file" accept="image/*"></label>
+      <div class="profile-avatar-preview-row"><img id="profileAvatarPreview" alt="Предпросмотр аватарки" class="profile-avatar-preview"><span class="muted">Изображение будет уменьшено для хранения в профиле.</span></div>
+      <label>Цвет фона профиля<input id="profileBackground" type="color" value="#202020"></label>
+      <label class="file-picker-label" for="profileBackgroundFile"><span class="file-picker-icon">▧</span><span><strong>Выбрать фото или видео фона</strong><small>Видео до 30 МБ · фото до 10 МБ</small></span><span class="file-picker-action">Выбрать</span></label>
+      <input id="profileBackgroundFile" class="visually-hidden" type="file" accept="image/*,video/*">
+      <div id="profileBackgroundPreview" class="profile-background-preview hidden"></div>
+      <p id="profileError" class="error" role="alert"></p>
+      <div class="profile-modal-actions"><button id="profileCancel" class="secondary" type="button">Отмена</button><button class="primary" type="submit">Сохранить</button></div>
+    </form>
+  </div>
+  <div id="publicProfileModal" class="profile-modal hidden" role="dialog" aria-modal="true" aria-labelledby="publicProfileName">
+    <section class="public-profile-card">
+      <button id="publicProfileClose" class="icon-button public-profile-close" type="button" aria-label="Закрыть">×</button>
+      <div id="publicProfileCover" class="public-profile-cover"></div>
+      <div class="public-profile-body"><div id="publicProfileAvatar" class="avatar public-profile-avatar">?</div><h2 id="publicProfileName"></h2><p id="publicProfileBio"></p><span id="publicProfileStatus" class="muted"></span></div>
+    </section>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

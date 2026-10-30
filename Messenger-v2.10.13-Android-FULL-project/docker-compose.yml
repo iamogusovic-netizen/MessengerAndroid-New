@@ -1,0 +1,50 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      MESSENGER_DATA_DIR: /data
+    volumes:
+      - ./data:/data
+    expose:
+      - "3000"
+    networks:
+      - internal
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SERVER_IP: ${SERVER_IP:?Set SERVER_IP in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal
+    depends_on:
+      app:
+        condition: service_healthy
+networks:
+  internal:
+    driver: bridge
+volumes:
+  caddy_data:
+  caddy_config:

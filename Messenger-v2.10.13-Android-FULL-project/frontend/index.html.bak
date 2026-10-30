@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111827"><title>Мессенджер</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="authScreen" class="auth-screen">
+    <section class="auth-card">
+      <div class="brand-mark">m</div><p class="eyebrow">ТВОЁ ОБЩЕНИЕ</p><h1>Мессенджер</h1><p class="muted auth-copy">ВРЕМЕННЫЙ РЕЖИМ HTTP: сообщения не зашифрованы и хранятся на сервере. Не отправляй личные данные. Для безопасного использования верни HTTPS и E2EE.</p>
+      <div class="auth-tabs"><button class="tab active" data-mode="login">Войти</button><button class="tab" data-mode="register">Создать аккаунт</button></div>
+      <form id="authForm" class="auth-form">
+        <label>Уникальный никнейм<input id="nickname" name="nickname" autocomplete="username" minlength="3" maxlength="24" placeholder="Например, MyNickname" required></label>
+        <p class="field-hint">3–24 символа: буквы, цифры, _ или -</p>
+        <label>Пароль<input id="password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" placeholder="Минимум 8 символов" required></label>
+        <p id="authError" class="error" role="alert"></p><button id="authSubmit" class="primary full" type="submit">Войти</button>
+      </form>
+      <p class="tiny muted">Пароль защищает твой ключ шифрования. Потеря пароля может означать потерю доступа к зашифрованным сообщениям.</p>
+    </section>
+  </main>
+
+  <main id="appScreen" class="app-shell hidden">
+    <aside class="sidebar">
+      <header class="side-header"><div class="brand-lockup"><div class="brand-mark small">m</div><span>мессенджер</span></div><button id="themeButton" class="icon-button" title="Сменить тему" aria-label="Сменить тему">☼</button></header>
+      <div class="profile-row"><div id="myAvatar" class="avatar">?</div><div class="profile-info"><strong id="myNickname">Пользователь</strong><span class="online-label"><i></i> в сети</span></div><button id="logoutButton" class="icon-button" title="Выйти" aria-label="Выйти">↪</button></div>
+      <div class="side-section-title">ОБЩЕНИЕ</div>
+      <button id="groupButton" class="conversation active"><span class="conversation-icon">#</span><span class="conversation-copy"><strong>Общий чат</strong><small>Все участники</small></span></button>
+      <div class="contacts-heading"><span>ЛИЧНЫЕ СООБЩЕНИЯ</span><span id="contactsCount">0</span></div>
+      <label class="search-label"><input id="userSearch" type="search" placeholder="Поиск по никнейму…" autocomplete="off" aria-label="Поиск пользователей по никнейму"></label>
+      <div id="contactsList" class="contacts-list"><div class="empty-contacts">Здесь появятся пользователи</div></div>
+      <footer class="sidebar-footer"><span class="status-dot"></span> Временный режим: без E2EE</footer>
+    </aside>
+    <section class="chat-panel">
+      <header class="chat-header"><div id="chatAvatar" class="avatar chat-avatar">#</div><div class="chat-title"><h2 id="chatTitle">Общий чат</h2><p id="chatSubtitle">Общение со всеми участниками</p></div><div class="header-right"><span class="connection"><i id="connectionDot"></i><span id="connectionText">Подключение…</span></span><button id="refreshButton" class="icon-button" title="Обновить контакты" aria-label="Обновить контакты">↻</button></div></header>
+      <div id="messages" class="messages"><div class="welcome"><div class="welcome-symbol">✦</div><h3>Добро пожаловать!</h3><p>Начни разговор — напиши первое сообщение.</p></div></div>
+      <div id="typingIndicator" class="typing-indicator"></div>
+      <form id="messageForm" class="composer"><button id="emojiButton" class="emoji-button" type="button" title="Добавить эмодзи">☺</button><textarea id="messageInput" rows="1" maxlength="2000" placeholder="Написать сообщение…" aria-label="Текст сообщения"></textarea><div class="composer-hint">Enter — отправить · Shift+Enter — новая строка</div><button id="sendButton" class="send-button" type="submit" aria-label="Отправить сообщение">➤</button></form>
+      <div class="footer-note">Не делись паролями и личными данными в публичном чате.</div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

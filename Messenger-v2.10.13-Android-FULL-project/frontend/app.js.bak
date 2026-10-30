@@ -1,0 +1,161 @@
+'use strict';
+const $ = id => document.getElementById(id);
+const state = { mode: 'login', token: '', me: null, users: [], online: new Set(), selected: null, ws: null, privateKey: null, typingTimer: null, typingClear: null, theme: localStorage.getItem('messengerTheme') || 'dark', seen: new Set() };
+localStorage.removeItem('messengerToken'); // E2EE requires password unlock on each app launch.
+const authScreen = $('authScreen'), appScreen = $('appScreen');
+function initials(n) { return (n || '?').trim().slice(0, 1).toLocaleUpperCase('ru-RU'); }
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function setTheme() { document.body.classList.toggle('light', state.theme === 'light'); document.documentElement.style.colorScheme = state.theme; $('themeButton').textContent = state.theme === 'light' ? '☾' : '☼'; }
+setTheme();
+function setMode(mode) { state.mode = mode; document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.mode === mode)); $('authSubmit').textContent = mode === 'login' ? 'Войти' : 'Создать аккаунт'; $('password').autocomplete = mode === 'login' ? 'current-password' : 'new-password'; $('authError').textContent = ''; }
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+async function api(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (state.token) headers.Authorization = `Bearer ${state.token}`;
+  const response = await fetch(path, { ...options, headers });
+  let data = {}; try { data = await response.json(); } catch {}
+  if (!response.ok) { if (response.status === 401 && state.token) await logout(false); throw new Error(data.error || `Ошибка ${response.status}`); }
+  return data;
+}
+
+const encoder = new TextEncoder(), decoder = new TextDecoder();
+const b64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes)));
+const unb64 = value => Uint8Array.from(atob(value), c => c.charCodeAt(0));
+async function passwordKey(password, salt) {
+  const material = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 310000, hash: 'SHA-256' }, material, { name: 'AES-GCM', length: 256 }, false, ['encrypt','decrypt']);
+}
+async function createEncryptedKeyBundle(password) {
+  const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+  const publicKey = await crypto.subtle.exportKey('jwk', pair.publicKey);
+  const privateJwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const wrappingKey = await passwordKey(password, salt);
+  const encryptedPrivateKey = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrappingKey, encoder.encode(JSON.stringify(privateJwk)));
+  return { publicKey, keySalt: b64(salt), keyIv: b64(iv), encryptedPrivateKey: b64(encryptedPrivateKey) };
+}
+async function unlockPrivateKey(bundle, password) {
+  try {
+    const key = await passwordKey(password, unb64(bundle.keySalt));
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(bundle.keyIv) }, key, unb64(bundle.encryptedPrivateKey));
+    return crypto.subtle.importKey('jwk', JSON.parse(decoder.decode(plain)), { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey']);
+  } catch { throw new Error('Не удалось открыть ключ шифрования. Проверь пароль или обнови приложение.'); }
+}
+async function encryptForPublicKey(text, recipientPublicJwk) {
+  const recipientKey = await crypto.subtle.importKey('jwk', recipientPublicJwk, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const aes = await crypto.subtle.deriveKey({ name: 'ECDH', public: recipientKey }, state.privateKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt','decrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aes, encoder.encode(text));
+  return { iv: b64(iv), ciphertext: b64(ciphertext) };
+}
+async function decryptEnvelope(message, peerId, envelope) {
+  const peer = state.users.find(u => u.id === peerId) || (state.me?.id === peerId ? state.me : null);
+  if (!peer?.publicKey || !state.privateKey || !envelope) return '[Не удалось расшифровать: ключ недоступен]';
+  try {
+    const peerKey = await crypto.subtle.importKey('jwk', peer.publicKey, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+    const aes = await crypto.subtle.deriveKey({ name: 'ECDH', public: peerKey }, state.privateKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt','decrypt']);
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(envelope.iv) }, aes, unb64(envelope.ciphertext));
+    return decoder.decode(plain);
+  } catch { return '[Сообщение не расшифровано: ключи не совпадают]'; }
+}
+async function decryptMessage(m) {
+  // Compatibility: messages saved by the older, pre-E2EE version remain readable.
+  if (typeof m.legacyText === 'string') return m.legacyText;
+  if (m.type === 'group') return decryptEnvelope(m, m.fromId, m.encryptedFor?.[state.me.id]);
+  const peerId = m.fromId === state.me.id ? m.toId : m.fromId;
+  return decryptEnvelope(m, peerId, m.encrypted);
+}
+$('authForm').addEventListener('submit', async e => {
+  e.preventDefault(); const button = $('authSubmit'); button.disabled = true; $('authError').textContent = '';
+  try {
+    const nickname = $('nickname').value; const password = $('password').value;
+    // Temporary HTTP-only mode: don't call WebCrypto, which is unavailable on a public HTTP IP.
+    // WARNING: messages are plaintext in this temporary mode; use HTTPS + E2EE for private conversations.
+    const data = await api(state.mode === 'login' ? '/api/login' : '/api/register', { method: 'POST', body: JSON.stringify({ nickname, password }) });
+    state.token = data.token;
+    state.privateKey = null;
+    state.me = data.user; $('password').value = ''; await enterApp();
+  } catch (err) { $('authError').textContent = err.message; }
+  finally { button.disabled = false; }
+});
+async function enterApp() {
+  authScreen.classList.add('hidden'); appScreen.classList.remove('hidden');
+  $('myNickname').textContent = state.me.nickname; $('myAvatar').textContent = initials(state.me.nickname); setTheme();
+  await loadUsers(); await selectChat(null); connectSocket();
+}
+async function logout(callApi = true) {
+  if (callApi && state.token) { try { await fetch('/api/logout', { method: 'POST', headers: { Authorization: `Bearer ${state.token}` } }); } catch {} }
+  if (state.ws) { state.ws.onclose = null; state.ws.close(); state.ws = null; }
+  state.token = ''; state.me = null; state.selected = null; state.online.clear(); localStorage.removeItem('messengerToken');
+  appScreen.classList.add('hidden'); authScreen.classList.remove('hidden'); $('messages').innerHTML = ''; $('contactsList').innerHTML = ''; $('authError').textContent = '';
+}
+$('logoutButton').addEventListener('click', () => logout(true));
+async function loadUsers() {
+  try { const data = await api('/api/users'); state.users = data.users; renderContacts(); }
+  catch (err) { if (state.me) toastError(err.message); }
+}
+function renderContacts() {
+  const query = ($('userSearch')?.value || '').trim().toLocaleLowerCase('ru-RU');
+  const visibleUsers = state.users.filter(u => u.nickname.toLocaleLowerCase('ru-RU').includes(query));
+  $('contactsCount').textContent = visibleUsers.length;
+  if (!visibleUsers.length) { $('contactsList').innerHTML = '<div class="empty-contacts">Других пользователей пока нет. Попроси знакомых зарегистрироваться.</div>'; return; }
+  $('contactsList').innerHTML = visibleUsers.map(u => `<button class="contact ${state.selected === u.id ? 'active' : ''}" data-user="${escapeHtml(u.id)}"><span class="avatar">${escapeHtml(initials(u.nickname))}</span><span class="contact-copy"><strong>${escapeHtml(u.nickname)}</strong><small>${state.online.has(u.id) ? 'В сети' : 'Личные сообщения'}</small></span><i class="presence-dot ${state.online.has(u.id) ? 'online' : ''}"></i></button>`).join('');
+  document.querySelectorAll('.contact').forEach(b => b.addEventListener('click', () => selectChat(b.dataset.user)));
+}
+$('userSearch').addEventListener('input', renderContacts);
+function renderChatHeader() {
+  if (!state.selected) { $('chatAvatar').textContent = '#'; $('chatTitle').textContent = 'Общий чат'; $('chatSubtitle').textContent = 'Общение со всеми участниками'; $('groupButton').classList.add('active'); }
+  else { const u = state.users.find(x => x.id === state.selected); $('chatAvatar').textContent = initials(u?.nickname); $('chatTitle').textContent = u?.nickname || 'Личные сообщения'; $('chatSubtitle').textContent = state.online.has(state.selected) ? 'В сети · личный чат' : 'Личные сообщения'; $('groupButton').classList.remove('active'); }
+  renderContacts();
+}
+async function selectChat(userId) {
+  state.selected = userId || null; state.seen.clear(); renderChatHeader(); $('typingIndicator').textContent = ''; $('messages').innerHTML = '<div class="welcome"><div class="welcome-symbol">✦</div><h3>Загружаем переписку…</h3><p>Секундочку.</p></div>';
+  try { const url = state.selected ? `/api/messages?with=${encodeURIComponent(state.selected)}` : '/api/messages'; const data = await api(url); $('messages').innerHTML = ''; if (!data.messages.length) showWelcome(); else for (const message of data.messages) await addMessage(message); scrollBottom(); }
+  catch (err) { $('messages').innerHTML = `<div class="welcome"><h3>Не удалось загрузить сообщения</h3><p>${escapeHtml(err.message)}</p></div>`; }
+}
+function showWelcome() { $('messages').innerHTML = `<div class="welcome"><div class="welcome-symbol">✦</div><h3>${state.selected ? 'Начни личный разговор' : 'Добро пожаловать!'}</h3><p>${state.selected ? 'Только ты и выбранный собеседник увидите сообщения этой переписки.' : 'Напиши первое сообщение в общий чат.'}</p></div>`; }
+async function addMessage(m) {
+  const isGroup = m.type === 'group';
+  if (state.selected ? (isGroup || !((m.fromId === state.me.id && m.toId === state.selected) || (m.fromId === state.selected && m.toId === state.me.id))) : !isGroup) return;
+  if (state.seen.has(m.id)) return; state.seen.add(m.id);
+  const displayText = await decryptMessage(m);
+  const empty = $('messages').querySelector('.welcome'); if (empty) empty.remove();
+  const mine = m.fromId === state.me.id; const item = document.createElement('article'); item.className = `message ${mine ? 'mine' : ''} ${!isGroup ? 'private' : ''}`;
+  const time = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  item.innerHTML = `<div class="message-meta"><strong>${mine ? 'Вы' : escapeHtml(m.fromNickname)}</strong><time>${time}</time></div><div class="message-bubble">${escapeHtml(displayText)}</div>`;
+  $('messages').appendChild(item); scrollBottom();
+}
+function scrollBottom() { $('messages').scrollTop = $('messages').scrollHeight; }
+function connectSocket() {
+  if (state.ws) state.ws.close(); const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${protocol}//${location.host}/?token=${encodeURIComponent(state.token)}`); state.ws = ws;
+  ws.addEventListener('open', async () => { $('connectionText').textContent = 'Подключено'; $('connectionDot').classList.add('connected');
+    // Catch up on messages missed while offline; no manual refresh needed.
+    try { await loadUsers(); const url = state.selected ? `/api/messages?with=${encodeURIComponent(state.selected)}` : '/api/messages'; const result = await api(url); for (const message of result.messages) await addMessage(message); if (!result.messages.length && !$('messages').querySelector('.message')) showWelcome(); } catch (err) { if (state.me) toastError(err.message); }
+  });
+  ws.addEventListener('message', event => { let data; try { data = JSON.parse(event.data); } catch { return; }
+    if (data.type === 'message') addMessage(data.message);
+    if (data.type === 'presence') { state.online = new Set((data.users || []).map(u => u.id)); renderContacts(); if (state.selected) renderChatHeader(); loadUsers(); }
+    if (data.type === 'typing' && data.toId !== state.me?.id) { /* not used: server sends typing to recipient without toId */ }
+    if (data.type === 'typing' && data.fromId === state.selected) { $('typingIndicator').textContent = data.active ? `${data.fromNickname} печатает…` : ''; clearTimeout(state.typingClear); if (data.active) state.typingClear = setTimeout(() => $('typingIndicator').textContent = '', 1800); }
+  });
+  ws.addEventListener('close', () => { $('connectionText').textContent = 'Переподключение…'; $('connectionDot').classList.remove('connected'); if (state.token && state.me) setTimeout(() => { if (state.token && (!state.ws || state.ws.readyState === WebSocket.CLOSED)) connectSocket(); }, 1800); });
+  ws.addEventListener('error', () => { $('connectionText').textContent = 'Нет соединения'; });
+}
+$('groupButton').addEventListener('click', () => selectChat(null));
+$('refreshButton').addEventListener('click', () => loadUsers());
+$('themeButton').addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; localStorage.setItem('messengerTheme', state.theme); setTheme(); });
+$('messageForm').addEventListener('submit', async e => {
+  e.preventDefault(); const text = $('messageInput').value.trim(); if (!text) return;
+  $('sendButton').disabled = true;
+  try { const isPrivate = !!state.selected; const payload = isPrivate ? { type: 'private', toId: state.selected, text } : { type: 'group', text }; const result = await api('/api/messages', { method: 'POST', body: JSON.stringify(payload) }); if (result.message) await addMessage(result.message); $('messageInput').value = ''; $('messageInput').style.height = 'auto'; sendTyping(false); }
+  catch (err) { toastError(err.message); }
+  finally { $('sendButton').disabled = false; $('messageInput').focus(); }
+});
+$('messageInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('messageForm').requestSubmit(); } });
+$('messageInput').addEventListener('input', () => { const el = $('messageInput'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 140) + 'px'; if (state.selected) sendTyping(true); });
+function sendTyping(active) { if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.selected) return; state.ws.send(JSON.stringify({ type: 'typing', toId: state.selected, active })); if (active) { clearTimeout(state.typingTimer); state.typingTimer = setTimeout(() => sendTyping(false), 1200); } }
+$('emojiButton').addEventListener('click', () => { const el = $('messageInput'); const emojis = ['🙂','😂','❤️','👍','🎉','✨']; const emoji = emojis[Math.floor(Math.random() * emojis.length)]; const start = el.selectionStart, end = el.selectionEnd; el.value = el.value.slice(0,start) + emoji + el.value.slice(end); el.focus(); el.selectionStart = el.selectionEnd = start + emoji.length; el.dispatchEvent(new Event('input')); });
+function toastError(message) { $('typingIndicator').textContent = message; $('typingIndicator').style.color = 'var(--danger)'; setTimeout(() => { $('typingIndicator').textContent = ''; $('typingIndicator').style.color = ''; }, 3500); }
+// Требуется повторный вход с паролем, чтобы разблокировать приватный ключ E2EE.
+setMode('login');
